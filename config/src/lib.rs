@@ -810,7 +810,7 @@ end
 --
 -- 11) Split pane
 -- config.split_pane_gap = 6                          -- default 2
--- config.inactive_pane_hsb = { saturation = 1.0, brightness = 0.9 }
+-- config.inactive_pane_hsb = { hue = 0.95, saturation = 1.0, brightness = 0.9 }
 --
 -- 12) Fullscreen (set false if you use yabai/AeroSpace tiling)
 -- config.native_macos_fullscreen_mode = false
@@ -987,6 +987,18 @@ mod tests {
             content.contains("-- config.color_scheme = 'Kaku Dark'")
                 && content.contains("-- config.color_scheme = 'Kaku Light'"),
             "generated user config should still show explicit theme examples"
+        );
+    }
+
+    #[test]
+    fn minimal_user_config_documents_inactive_pane_hue() {
+        let content = minimal_user_config_template();
+
+        assert!(
+            content.contains(
+                "config.inactive_pane_hsb = { hue = 0.95, saturation = 1.0, brightness = 0.9 }"
+            ),
+            "generated user config should expose every inactive-pane HSB component"
         );
     }
 

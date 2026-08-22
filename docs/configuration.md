@@ -206,6 +206,22 @@ config.tab_inherit_working_directory = true       -- new tabs
 config.split_pane_inherit_working_directory = true -- new splits
 ```
 
+**Focused pane emphasis**
+
+To make the focused pane easier to spot, adjust the colors of inactive panes:
+
+```lua
+config.inactive_pane_hsb = {
+  hue = 0.95,
+  saturation = 1.0,
+  brightness = 0.9,
+}
+```
+
+Each value multiplies the pane's existing HSV component, so `1.0` leaves that
+component unchanged. `hue` is not a color value or a degree-based rotation;
+small adjustments work best. The focused pane itself is not transformed.
+
 **Tab bar**
 
 Hidden when only one tab is open. Auto-generated tab titles show the current
