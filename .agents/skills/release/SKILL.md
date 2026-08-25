@@ -132,6 +132,7 @@ Resume flags require the corresponding artifacts in `dist/` to still be present.
 - **`Notarization credentials not found`**: follow the ignored private setup runbook to provision one of the environment/keychain inputs described under Credential prerequisites, then rerun `./scripts/release.sh --dry-run`. The script otherwise prompts interactively, which fails in non-interactive shells.
 - **rcodesign S3 connect timeout (3.1s)**: rcodesign uploads the dmg to `notary-submissions-prod.s3.amazonaws.com` via the AWS SDK for Rust, which has a hardcoded 3.1s connect timeout and does not honor `*_proxy` env vars. On networks where direct connect to AWS S3 is slow or proxied (typical for mainland China), it fails consistently with `s3 upload error: HTTP connect timeout occurred after 3.1s`. The error is independent of credentials. Fix: prefix the run with `KAKU_ASC_API_KEY_PATH=/dev/null` to make `notarize.sh` skip rcodesign and use notarytool directly. Both keychain entries should remain set.
 - **Homebrew tap verifier timed out at 12/12**: usually a Fastly CDN false negative, not a real failure. The tap workflow commits `kakuku <version>` to `tw93/homebrew-tap` main on success; verify with `gh api repos/tw93/homebrew-tap/commits/main --jq .commit.message`. The release script polls via `download_url` (raw.githubusercontent.com) which sits behind Fastly with `cache-control: max-age=300`, so the previous version's content can be served for the full 3-minute polling window. If the tap commit is present, the release is complete; CDN catches up within 1-5 minutes. To suppress the verifier on future runs use `REQUIRE_HOMEBREW_TAP_UPDATE=0`. A proper fix would switch the verifier to read API content (`gh api .../contents/... --jq .content | base64 -d`) instead of `download_url`.
+- **`stapler` fails with CloudKit timeout, exit code 68**: the log reads `The staple and validate action failed! Error 68` right after `Notarization accepted`. Notarization already succeeded; only ticket retrieval from `api.apple-cloudkit.com` timed out. Same family as the rcodesign S3 timeout, but intermittent rather than systematic, so do NOT re-notarize. Check reachability (`curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://api.apple-cloudkit.com/`; a 400 means reachable), then run `./scripts/notarize.sh --staple-only` and resume with `./scripts/release.sh --upload-only`. The staple-only path regenerates `kaku_for_update.zip` and its sha256 on purpose: attaching the ticket changes the app, so the Sparkle archive must be rebuilt after stapling, never before.
 - **Tag already exists on origin at a different SHA**: do not force-push tags. Pick the next patch number, bump versions, and start over.
 
 ## Environment variable overrides
@@ -154,5 +155,13 @@ Resume flags require the corresponding artifacts in `dist/` to still be present.
 - GitHub Release URL: `https://github.com/tw93/Kaku/releases/tag/V<version>`.
 - Homebrew users get the new version once the tap workflow finishes; verify with `brew update && brew info --cask kakuku`.
 - Sparkle in-app updates are served from the GitHub Release assets (`kaku_for_update.zip` + `.sha256`).
+- Add the six positive reactions to the new release. This is part of shipping, not optional polish: V0.17.0 and V0.16.0 both carry exactly these six, and V0.18.0 went out without them because nothing recorded the step. Skip `-1` and `confused`.
+
+  ```bash
+  id=$(gh api repos/tw93/Kaku/releases/tags/V<version> --jq .id)
+  for c in +1 laugh heart hooray rocket eyes; do
+      gh api -X POST "repos/tw93/Kaku/releases/$id/reactions" -f content="$c"
+  done
+  ```
 
 For the announcement post (X / WeChat): community first, 2-4 highlights, user-experience framing, one opinionated sentence. The release notes file is a different artifact; do not paste it as the announcement.
