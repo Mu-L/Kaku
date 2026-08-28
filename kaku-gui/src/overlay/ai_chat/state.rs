@@ -39,6 +39,28 @@ pub(super) fn push_input_snapshot(stack: &mut Vec<InputSnapshot>, input: &str, c
     });
 }
 
+/// Keep the explicitly configured chat model available and prefer it when a
+/// saved selection belongs to a different provider.
+fn reconcile_fetched_models(
+    mut models: Vec<String>,
+    configured_model: &str,
+    saved_model: Option<&str>,
+) -> (Vec<String>, usize) {
+    models.retain(|model| model != configured_model);
+    models.insert(0, configured_model.to_string());
+
+    let model_index = saved_model
+        .filter(|model| *model != crate::codex_connection::FOLLOW_CODEX_MODEL)
+        .and_then(|model| {
+            models
+                .iter()
+                .position(|candidate| candidate.as_str() == model)
+        })
+        .unwrap_or(0);
+
+    (models, model_index)
+}
+
 // ─── Attachment / slash helpers ───────────────────────────────────────────────
 
 pub(super) fn attachment_option_by_label(label: &str) -> Option<AttachmentOption> {
@@ -1127,33 +1149,32 @@ impl App {
                 if list.len() > 30 {
                     list.truncate(30);
                 }
-                // Restore saved model preference. If the saved model is no longer
-                // in the returned list (e.g. provider removed it), surface an error
-                // rather than silently switching to index 0.
-                let saved =
-                    crate::ai_state::load_last_model().unwrap_or_else(|| self.current_model());
-                if saved == crate::codex_connection::FOLLOW_CODEX_MODEL {
-                    self.available_models = list;
-                    self.model_index = 0;
-                    self.model_fetch = ModelFetch::Loaded;
-                    return true;
-                }
-                match list.iter().position(|m| m == &saved) {
-                    Some(idx) => {
-                        self.available_models = list;
-                        self.model_index = idx;
-                        self.model_fetch = ModelFetch::Loaded;
-                    }
-                    None => {
-                        self.available_models = list;
-                        self.model_index = 0;
-                        self.model_fetch = ModelFetch::Failed(format!(
-                            "saved model '{}' is not in the server's model list; \
-                             please select a model manually",
-                            saved
-                        ));
+                // `available_models[0]` is always the model explicitly configured
+                // for this session. A global saved selection may belong to a
+                // previously used provider, so only restore it when the new
+                // provider also advertises it.
+                let configured_model = self
+                    .available_models
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(|| self.current_model());
+                let saved_model = crate::ai_state::load_last_model();
+                let (models, model_index) =
+                    reconcile_fetched_models(list, &configured_model, saved_model.as_deref());
+                let selected_model = models.get(model_index).cloned().unwrap_or_default();
+
+                if saved_model.as_deref().is_some_and(|saved| {
+                    saved != crate::codex_connection::FOLLOW_CODEX_MODEL
+                        && saved != selected_model.as_str()
+                }) {
+                    if let Err(error) = crate::ai_state::save_last_model(&selected_model) {
+                        log::warn!("Failed to replace stale model selection: {error}");
                     }
                 }
+
+                self.available_models = models;
+                self.model_index = model_index;
+                self.model_fetch = ModelFetch::Loaded;
                 true
             }
             Ok(Err(e)) => {
@@ -2250,6 +2271,42 @@ impl App {
 #[cfg(test)]
 mod responses_state_tests {
     use super::*;
+
+    #[test]
+    fn stale_saved_model_falls_back_to_configured_model() {
+        let (models, index) = reconcile_fetched_models(
+            vec!["glm-4.5".to_string(), "glm-5.3-flash".to_string()],
+            "glm-5.3-flash",
+            Some("deepseek-v4-flash-vision-exp"),
+        );
+
+        assert_eq!(models, ["glm-5.3-flash", "glm-4.5"]);
+        assert_eq!(index, 0);
+    }
+
+    #[test]
+    fn valid_saved_model_remains_selected_after_fetch() {
+        let (models, index) = reconcile_fetched_models(
+            vec!["glm-4.5".to_string(), "glm-5.3-flash".to_string()],
+            "glm-5.3-flash",
+            Some("glm-4.5"),
+        );
+
+        assert_eq!(models, ["glm-5.3-flash", "glm-4.5"]);
+        assert_eq!(index, 1);
+    }
+
+    #[test]
+    fn configured_model_stays_available_when_provider_omits_it() {
+        let (models, index) = reconcile_fetched_models(
+            vec!["provider-default".to_string()],
+            "custom-chat-model",
+            Some("old-provider-model"),
+        );
+
+        assert_eq!(models, ["custom-chat-model", "provider-default"]);
+        assert_eq!(index, 0);
+    }
 
     #[test]
     fn transient_responses_state_never_creates_persistable_assistant_turn() {
