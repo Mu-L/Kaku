@@ -46,8 +46,13 @@ fn reconcile_fetched_models(
     configured_model: &str,
     saved_model: Option<&str>,
 ) -> (Vec<String>, usize) {
-    models.retain(|model| model != configured_model);
-    models.insert(0, configured_model.to_string());
+    let follows_codex = configured_model == crate::codex_connection::FOLLOW_CODEX_MODEL;
+    if follows_codex && models.is_empty() {
+        models.push(configured_model.to_string());
+    } else if !follows_codex {
+        models.retain(|model| model != configured_model);
+        models.insert(0, configured_model.to_string());
+    }
 
     let model_index = saved_model
         .filter(|model| *model != crate::codex_connection::FOLLOW_CODEX_MODEL)
@@ -59,6 +64,23 @@ fn reconcile_fetched_models(
         .unwrap_or(0);
 
     (models, model_index)
+}
+
+fn restored_model_index(
+    models: &[String],
+    saved_model: Option<&str>,
+    list_is_fresh_for_current_provider: bool,
+) -> usize {
+    if !list_is_fresh_for_current_provider {
+        return 0;
+    }
+    saved_model
+        .and_then(|saved| models.iter().position(|model| model == saved))
+        .unwrap_or(0)
+}
+
+fn model_cache_key(base_url: &str, auth_type: &str) -> String {
+    format!("{}\n{}", auth_type, base_url.trim_end_matches('/'))
 }
 
 // ─── Attachment / slash helpers ───────────────────────────────────────────────
@@ -787,7 +809,8 @@ impl App {
                 (vec![chat_model], ModelFetch::Loaded, None)
             }
         } else {
-            let cached = crate::ai_state::load_cached_models();
+            let cache_key = model_cache_key(&client.config().base_url, &client.config().auth_type);
+            let cached = crate::ai_state::load_cached_models(&cache_key);
             let initial_models = if cached.is_empty() {
                 vec![chat_model.clone()]
             } else {
@@ -796,37 +819,29 @@ impl App {
                 models.insert(0, chat_model.clone());
                 models
             };
-            let initial_fetch = if initial_models.len() > 1 {
-                ModelFetch::Loaded
-            } else {
-                ModelFetch::Loading
-            };
             let (tx, rx) = mpsc::channel::<Result<Vec<String>, String>>();
             let fetch_client = client.clone();
             let chat_model_clone = chat_model.clone();
             crate::thread_util::spawn_with_pool(move || {
                 let result = fetch_client.list_models().map_err(|e| e.to_string());
                 if let Ok(ref models) = result {
-                    let mut to_save = models.clone();
-                    to_save.retain(|m| m != &chat_model_clone);
-                    to_save.insert(0, chat_model_clone);
-                    let _ = crate::ai_state::save_cached_models(&to_save);
+                    let (to_save, _) =
+                        reconcile_fetched_models(models.clone(), &chat_model_clone, None);
+                    let _ = crate::ai_state::save_cached_models(&cache_key, &to_save);
                 }
                 let _ = tx.send(result);
             });
-            (initial_models, initial_fetch, Some(rx))
+            (initial_models, ModelFetch::Loading, Some(rx))
         };
 
-        // Restore the last selected model from disk. If it exists in available_models,
-        // rotate the list so it becomes index 0.
-        let model_index = if let Some(last) = crate::ai_state::load_last_model() {
-            available_models
-                .iter()
-                .position(|m| m == &last)
-                .unwrap_or(0)
-        } else {
-            0
-        };
+        // A dynamic cached list may belong to an older account or provider state.
+        // Keep the configured model selected until the current fetch succeeds.
+        let saved_model = crate::ai_state::load_last_model();
+        let model_index = restored_model_index(
+            &available_models,
+            saved_model.as_deref(),
+            model_fetch_rx.is_none(),
+        );
 
         // Ensure there is an active conversation and load its messages.
         // If that fails, try to create a fresh one so the session can still be persisted.
@@ -1161,16 +1176,9 @@ impl App {
                 let saved_model = crate::ai_state::load_last_model();
                 let (models, model_index) =
                     reconcile_fetched_models(list, &configured_model, saved_model.as_deref());
-                let selected_model = models.get(model_index).cloned().unwrap_or_default();
-
-                if saved_model.as_deref().is_some_and(|saved| {
-                    saved != crate::codex_connection::FOLLOW_CODEX_MODEL
-                        && saved != selected_model.as_str()
-                }) {
-                    if let Err(error) = crate::ai_state::save_last_model(&selected_model) {
-                        log::warn!("Failed to replace stale model selection: {error}");
-                    }
-                }
+                // A background refresh may finish after another pane/provider has
+                // saved a newer explicit choice. Reconcile this session in memory;
+                // only direct user actions persist `last_model`.
 
                 self.available_models = models;
                 self.model_index = model_index;
@@ -2306,6 +2314,60 @@ mod responses_state_tests {
 
         assert_eq!(models, ["custom-chat-model", "provider-default"]);
         assert_eq!(index, 0);
+    }
+
+    #[test]
+    fn follow_codex_uses_first_fresh_discovered_model() {
+        let (models, index) = reconcile_fetched_models(
+            vec!["gpt-5.4".to_string(), "gpt-5.3".to_string()],
+            crate::codex_connection::FOLLOW_CODEX_MODEL,
+            Some(crate::codex_connection::FOLLOW_CODEX_MODEL),
+        );
+
+        assert_eq!(models, ["gpt-5.4", "gpt-5.3"]);
+        assert_eq!(index, 0);
+    }
+
+    #[test]
+    fn follow_codex_keeps_sentinel_only_when_discovery_is_empty() {
+        let (models, index) =
+            reconcile_fetched_models(vec![], crate::codex_connection::FOLLOW_CODEX_MODEL, None);
+
+        assert_eq!(models, [crate::codex_connection::FOLLOW_CODEX_MODEL]);
+        assert_eq!(index, 0);
+    }
+
+    #[test]
+    fn stale_cached_list_cannot_restore_a_saved_provider_model() {
+        let models = vec![
+            "configured-model".to_string(),
+            "old-provider-model".to_string(),
+        ];
+
+        assert_eq!(
+            restored_model_index(&models, Some("old-provider-model"), false),
+            0
+        );
+        assert_eq!(
+            restored_model_index(&models, Some("old-provider-model"), true),
+            1
+        );
+    }
+
+    #[test]
+    fn model_cache_key_is_endpoint_scoped_and_normalizes_trailing_slash() {
+        assert_eq!(
+            model_cache_key("https://api.example.com/", "api_key"),
+            model_cache_key("https://api.example.com", "api_key")
+        );
+        assert_ne!(
+            model_cache_key("https://api.example.com", "api_key"),
+            model_cache_key("https://api.example.com", "codex")
+        );
+        assert_ne!(
+            model_cache_key("https://api.example.com", "api_key"),
+            model_cache_key("https://other.example.com", "api_key")
+        );
     }
 
     #[test]
