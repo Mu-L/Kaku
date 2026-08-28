@@ -1525,6 +1525,24 @@ pub fn window_level_to_nswindow_level(level: WindowLevel) -> NSWindowLevel {
 
 #[async_trait(?Send)]
 impl WindowOps for Window {
+    fn show_context_menu(&self, menu: crate::os::macos::menu::Menu, point: ScreenPoint) {
+        if self.ns_window().is_some() {
+            unsafe {
+                // ScreenPoint uses Kaku's global top-left coordinate space,
+                // which is normalized against the primary display in
+                // cartesian_to_screen_point. Invert that same transform;
+                // using the secondary display frame here introduces an
+                // offset on external monitors.
+                let primary = NSScreen::screens(nil).objectAtIndex(0);
+                let primary_frame: cocoa::foundation::NSRect = msg_send![primary, frame];
+                let backing = NSScreen::convertRectToBacking_(primary, primary_frame);
+                let scale = backing.size.height / primary_frame.size.height;
+                let cocoa_y = primary_frame.size.height - point.y as f64 / scale;
+                menu.pop_up_at_screen_point((point.x as f64 / scale) as isize, cocoa_y as isize);
+            }
+        }
+    }
+
     async fn enable_opengl(&self) -> anyhow::Result<Rc<glium::backend::Context>> {
         let window_id = self.id;
         promise::spawn::spawn(async move {
@@ -4806,7 +4824,7 @@ impl WindowView {
         menu_item: *mut Object,
     ) {
         let menu_item = MenuItem::with_menu_item(menu_item);
-        // Safe because kakuPerformKeyAssignment: is only used with KeyAssignment
+        // Safe because kakuPerformKeyAssignment: is only used with RepresentedItem
         let action = menu_item.get_represented_item();
         log::debug!("kaku_perform_key_assignment {action:?}",);
         match action {
@@ -4818,6 +4836,20 @@ impl WindowView {
                         let events = inner.events.clone();
                         drop(inner);
                         events.dispatch(WindowEvent::PerformKeyAssignment(action));
+                    }
+                }
+            }
+            Some(RepresentedItem::KeyAssignmentForPane { action, pane_id }) => {
+                if let Some(this) = Self::get_this(this) {
+                    // As above, release the RefCell borrow before dispatch so the
+                    // native menu action remains safe under AppKit re-entry.
+                    if let Ok(inner) = this.inner.try_borrow() {
+                        let events = inner.events.clone();
+                        drop(inner);
+                        events.dispatch(WindowEvent::PerformKeyAssignmentForPane {
+                            action,
+                            pane_id,
+                        });
                     }
                 }
             }

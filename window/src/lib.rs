@@ -259,6 +259,13 @@ pub enum WindowEvent {
     /// Called by menubar dispatching stuff on some systems
     PerformKeyAssignment(config::keyassignment::KeyAssignment),
 
+    /// Called by a pane context menu. The stable pane id prevents an action
+    /// from falling through to a different active pane while the menu is open.
+    PerformKeyAssignmentForPane {
+        action: config::keyassignment::KeyAssignment,
+        pane_id: usize,
+    },
+
     AdviseModifiersLedStatus(Modifiers, KeyboardLedStatus),
 }
 
@@ -381,6 +388,9 @@ pub trait WindowOps {
 
     /// Change the titlebar text for the window
     fn set_title(&self, title: &str);
+
+    #[cfg(target_os = "macos")]
+    fn show_context_menu(&self, menu: crate::os::macos::menu::Menu, point: ScreenPoint);
 
     /// Resize the inner or client area of the window
     fn set_inner_size(&self, width: usize, height: usize);
