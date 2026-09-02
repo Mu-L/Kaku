@@ -49,7 +49,7 @@ fn compact_tool_content(tool_name: &str, content: &str) -> Option<String> {
         "fs_read" if lines.len() > FS_READ_CAP => {
             let kept = FS_READ_CAP.saturating_sub(1);
             Some(format!(
-                "[fs_read: {} lines total, showing first {}]\n{}",
+                "[fs_read: {} lines total, showing first {}. Use start_line/end_line to inspect remaining lines]\n{}",
                 lines.len(),
                 kept,
                 lines[..kept].join("\n")

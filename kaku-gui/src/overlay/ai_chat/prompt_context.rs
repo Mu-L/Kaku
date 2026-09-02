@@ -33,9 +33,7 @@ pub(crate) fn build_environment_message(ctx: &TerminalContext) -> ApiMessage {
         panel_cols: Some(ctx.panel_cols),
         panel_rows: Some(ctx.panel_rows),
         include_terminal_metadata: true,
-        // Overlay does not include project hints because the user already sees
-        // the project around them and the panel size is small.
-        include_project_hints: false,
+        include_project_hints: true,
     })
 }
 
@@ -87,7 +85,7 @@ pub(crate) fn build_visible_snapshot_message(ctx: &TerminalContext) -> Option<Ap
 
 #[cfg(test)]
 mod tests {
-    use super::build_visible_snapshot_message;
+    use super::{build_environment_message, build_visible_snapshot_message};
     use crate::overlay::ai_chat::{ChatPalette, TerminalContext};
     use termwiz::color::SrgbaTuple;
 
@@ -195,6 +193,17 @@ mod tests {
             count <= 20,
             "snapshot must be capped at 20 lines, got {}",
             count
+        );
+    }
+
+    #[test]
+    fn environment_message_includes_project_hints() {
+        let ctx = test_ctx(&[], None, None);
+        let msg = build_environment_message(&ctx);
+        let body = content(&msg);
+        assert!(
+            body.contains("Current directory: /tmp"),
+            "environment context must include cwd"
         );
     }
 }
