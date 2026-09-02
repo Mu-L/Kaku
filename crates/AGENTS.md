@@ -14,12 +14,10 @@ Key groups:
 | Platform and process | `pty`, `filedescriptor`, `procinfo`, `env-bootstrap`, `umask`, `async_ossl` |
 | Lua and config support | `luahelper`, `wezterm-dynamic` |
 | Shared utilities | `promise`, `base91`, `bidi`, `bintree`, `frecency`, `lfucache`, `rangeset`, `ratelim`, `tabout`, `wezterm-blob-leases`, `wezterm-char-props`, `wezterm-version` |
-| Kaku-specific utilities | `kaku-ai-utils` |
+| Kaku-specific utilities | `kaku-ai-utils`, `kaku-unicode-names` (generated Unicode name table lifted out of `kaku-gui/src`; regenerate with `ucd-generate`, do not hand-edit) |
 
 ## Practical Rules
 
-- Prefer reusing existing workspace crates before adding new ones.
-- Preserve public API stability for cross-crate consumers.
 - For macOS notification actions that launch Kaku commands, prefer resolving bundled executables relative to the running `kaku-gui` binary.
 - Keep `kaku-ai-utils` provider-agnostic; provider policy belongs in GUI/CLI call sites and config, not in low-level helpers.
 - When shared cache helpers affect startup, verify the GUI consumer and avoid invalidating hot-path caches unnecessarily.
