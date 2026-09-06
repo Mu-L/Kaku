@@ -198,12 +198,23 @@ mod tests {
 
     #[test]
     fn environment_message_includes_project_hints() {
-        let ctx = test_ctx(&[], None, None);
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("Cargo.toml"), "").unwrap();
+        let mut ctx = test_ctx(&[], None, None);
+        ctx.cwd = dir.path().to_str().unwrap().to_string();
         let msg = build_environment_message(&ctx);
         let body = content(&msg);
         assert!(
-            body.contains("Current directory: /tmp"),
-            "environment context must include cwd"
+            body.contains("Project type: Rust (Cargo)"),
+            "local project markers must reach the overlay context"
+        );
+
+        ctx.remote_host = Some("remote.example".to_string());
+        let remote = build_environment_message(&ctx);
+        assert!(content(&remote).contains("Remote session:"));
+        assert!(
+            !content(&remote).contains("Project type:"),
+            "remote cwd must not be probed on the local machine"
         );
     }
 }
