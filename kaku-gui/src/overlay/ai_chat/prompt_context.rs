@@ -33,9 +33,7 @@ pub(crate) fn build_environment_message(ctx: &TerminalContext) -> ApiMessage {
         panel_cols: Some(ctx.panel_cols),
         panel_rows: Some(ctx.panel_rows),
         include_terminal_metadata: true,
-        // Overlay does not include project hints because the user already sees
-        // the project around them and the panel size is small.
-        include_project_hints: false,
+        include_project_hints: true,
     })
 }
 
@@ -87,7 +85,7 @@ pub(crate) fn build_visible_snapshot_message(ctx: &TerminalContext) -> Option<Ap
 
 #[cfg(test)]
 mod tests {
-    use super::build_visible_snapshot_message;
+    use super::{build_environment_message, build_visible_snapshot_message};
     use crate::overlay::ai_chat::{ChatPalette, TerminalContext};
     use termwiz::color::SrgbaTuple;
 
@@ -195,6 +193,28 @@ mod tests {
             count <= 20,
             "snapshot must be capped at 20 lines, got {}",
             count
+        );
+    }
+
+    #[test]
+    fn environment_message_includes_project_hints() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("Cargo.toml"), "").unwrap();
+        let mut ctx = test_ctx(&[], None, None);
+        ctx.cwd = dir.path().to_str().unwrap().to_string();
+        let msg = build_environment_message(&ctx);
+        let body = content(&msg);
+        assert!(
+            body.contains("Project type: Rust (Cargo)"),
+            "local project markers must reach the overlay context"
+        );
+
+        ctx.remote_host = Some("remote.example".to_string());
+        let remote = build_environment_message(&ctx);
+        assert!(content(&remote).contains("Remote session:"));
+        assert!(
+            !content(&remote).contains("Project type:"),
+            "remote cwd must not be probed on the local machine"
         );
     }
 }

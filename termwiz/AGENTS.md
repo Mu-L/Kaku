@@ -14,7 +14,6 @@
 ## Practical Rules
 
 - Keep primitives generic; do not leak Kaku-specific policy into reusable widgets.
-- Preserve keyboard navigation and terminal rendering compatibility.
 
 ## Verification
 

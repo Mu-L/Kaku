@@ -384,6 +384,29 @@ fn checked_retry_attempts(retries: u32, provider_id: &str) -> Result<u32> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn connection_matches_shared_readiness_contract() {
+        let cases: serde_json::Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../tests/fixtures/codex-connection.json"
+        )))
+        .expect("shared connection fixtures");
+        for case in cases.as_array().unwrap() {
+            let result = resolve_codex_connection(
+                case["config"].as_str().unwrap(),
+                case.get("auth"),
+                |key| case["env"][key].as_str().map(str::to_owned),
+            );
+            assert_eq!(
+                result.is_ok(),
+                case["ready"].as_bool().unwrap(),
+                "{}: {:?}",
+                case["name"],
+                result.err()
+            );
+        }
+    }
+
     fn api_key_auth() -> serde_json::Value {
         serde_json::json!({
             "auth_mode": "apikey",

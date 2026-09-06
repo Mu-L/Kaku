@@ -37,7 +37,7 @@ gh issue list --repo tw93/Kaku --state closed --label bug --limit 40
 
 Bugs recur by shape within a module. Two signals worth acting on:
 
-- A fix chain of two or more commits each "completing" the previous one means a sibling path is probably still open. Real chain here: toast confirm → menu confirm → brew confirm on the same update flow.
+- A fix chain of two or more commits each "completing" the previous one means a sibling path is probably still open. Real chain here: toast confirm, then menu confirm, then brew confirm on the same update flow.
 - A commit body that says only one surface was fixed (toast / CLI / overlay / brew) means grep every other surface for the same action.
 
 ## 3. Sweep the boundaries, in this order

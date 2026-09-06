@@ -17,7 +17,7 @@ The `config` crate owns config loading, Lua integration, schema behavior, proxy 
 - `config/src/config.rs`: load/parse flow
 - `config/src/lib.rs`: config API and subscriptions
 - `config/src/proxy.rs`: proxy configuration used by AI and network-facing flows
-- `config/src/version.rs`: config version and migration-related constants
+- `config/src/version.rs`: app version and target-triple accessors (`wezterm_version()`), not `config_version`; that number lives only in `assets/shell-integration/config_version.txt`, read by `kaku/src/init.rs` and the bundled `kaku.lua`
 - `assets/macos/Kaku.app/Contents/Resources/kaku.lua`: bundled fallback config
 
 ## Config TUI (`kaku/src/config_tui/` and `kaku/src/tui_core/`)
@@ -40,11 +40,10 @@ The AI config TUI lives in the `kaku` CLI crate and shares terminal UI primitive
 
 - Loading priority: user config first, bundled config second.
 - Keep reload-safe behavior for startup hooks and subscriptions.
-- Avoid introducing config paths that bypass existing precedence rules.
 - `KAKU_CONFIG_FILE` is an output, not an input. Config loading exports it (`config/src/config.rs`) and `effective_config_file_path()` (`config/src/lib.rs`), the GUI single-instance check (`kaku-gui/src/main.rs`), `assets/shell-integration/setup_{zsh,fish}.sh`, and the bundled `kaku.lua` all read it back. Do not turn it into a config path override; the only supported override is `--config-file` (`CONFIG_FILE_OVERRIDE`).
 - Keep bundled fallback config authoritative at `assets/macos/Kaku.app/Contents/Resources/kaku.lua`.
 - Preserve compatibility with runtime reload callers that trigger `config::reload()` from GUI-side signals.
-- The current `config_version` is whatever `assets/shell-integration/config_version.txt` says; never trust a number written in a doc (this line once said 24 while the release was at 26). Any version bump must update bundled config, release checks, docs, and migration expectations together, and add a row to `docs/config-versions.md`.
+- The current `config_version` is whatever `assets/shell-integration/config_version.txt` says; never trust a number written in a doc. Any version bump must update bundled config, release checks, docs, and migration expectations together, and add a row to `docs/config-versions.md`.
 - New config fields are user-facing behavior. Keep them out of pure cleanup/refactor patches unless the maintainer explicitly approved the product change, and update bundled defaults plus documentation in the same change when they do land.
 - Keep alternate-screen wheel scroll behavior configurable; terminal and GUI defaults must not diverge.
 
@@ -59,6 +58,8 @@ The AI config TUI lives in the `kaku` CLI crate and shares terminal UI primitive
   ```bash
   luajit -e "assert(loadfile('assets/macos/Kaku.app/Contents/Resources/kaku.lua'))"
   ```
+
+  `scripts/check_kaku_lua_loads.sh <path>` wraps the same check and doubles as a PostToolUse hook for edits to this file.
 
 - **PaneInformation is fields-only.** In title-formatting paths (`format-tab-title`,
   `format-window-title`), the `pane` object is a `PaneInformation` userdata that exposes

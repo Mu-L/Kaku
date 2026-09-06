@@ -16,18 +16,17 @@ Use this skill for maintenance work that spans GitHub issues, pull requests, loc
    - If the task asks for the latest state, refresh the lists again before final decisions.
 
 2. **Map reports to code**
-   - Find the latest release tag with `git tag --sort=-version:refname | head -1`; ignore rolling tags such as `nightly` unless the maintainer asks about them.
+   - Find the latest release tag with `git tag --list 'V*' --sort=-version:refname | head -1`; without the `V*` filter the rolling `nightly` tag sorts first.
    - Compare relevant changes with `git log <tag>..HEAD --oneline`, `git show`, and targeted `rg`.
    - Do not treat a closed issue as proof. Identify the fix mechanism, the commit, or the remaining gap.
 
 3. **Fix and verify**
    - Keep fixes scoped. For unrelated issues, prefer one commit per issue or behavior.
-   - For shell integration changes, run the affected smoke test and the shell smoke group when feasible.
+   - For shell integration changes, run the affected `assets/shell-integration/tests/*_smoke.sh` script, then the full list that `.github/workflows/checks.yml` runs under `Shell integration smoke tests` when feasible.
    - For AI provider, transport, or config changes, run targeted Cargo tests before repository-level checks.
    - For release-adjacent work, prefer `git diff --check`, `make fmt-check`, `make check`, `make test`, and `make app` unless the maintainer narrows the gate.
 
 4. **Push safely**
-   - Confirm the tree contains only intended changes.
    - Run `git fetch origin main`, then verify `origin/main` still matches the expected base before `git push origin main`.
    - If `origin/main` moved, stop and review `origin/main..HEAD`.
    - After pushing, locate the new run with `gh run list --branch main --limit 5` and watch it with `gh run watch <id> --exit-status`.

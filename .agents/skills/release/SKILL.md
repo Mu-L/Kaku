@@ -19,7 +19,7 @@ KAKU_ASC_API_KEY_PATH=/dev/null ./scripts/release.sh        # full release on sl
 ./scripts/nightly.sh                                        # rolling Nightly DMG for fixes already on main
 ```
 
-Both must run on `main`, with a clean tree, in sync with `origin/main`. The script auto-detects the signing identity and reads notarization creds from the login keychain.
+`release.sh` must run on `main`, with a clean tree, in sync with `origin/main`. `nightly.sh` has no branch or clean-tree gate; it only refuses to publish when HEAD is not yet on `tw93/Kaku`. Both auto-detect the signing identity and read notarization creds from the login keychain.
 
 The `KAKU_ASC_API_KEY_PATH=/dev/null` prefix skips rcodesign and forces the notarytool fallback. Use it whenever direct connectivity to `notary-submissions-prod.s3.amazonaws.com` is slow or proxied (see "rcodesign S3 connect timeout" under Common blockers). Both keychain entries should still be configured; the env var only redirects the path inside `notarize.sh`.
 
@@ -69,7 +69,7 @@ Before invoking `release.sh`, confirm in this order:
 1. `kaku/Cargo.toml` and `kaku-gui/Cargo.toml` versions match (e.g. `0.10.0`).
 2. `assets/shell-integration/config_version.txt` is the intended schema version, with highlight rows in the matching docs.
 3. `.github/RELEASE_NOTES.md` first heading is `# V<version> <suffix>` (uppercase V, used as the GitHub Release title).
-4. Both English `Changelog` and Chinese `更新日志` sections in `RELEASE_NOTES.md` cover the same items.
+4. Both English `Changelog` and Chinese `更新日志` sections in `RELEASE_NOTES.md` cover the same items. Register: one full stop per item, declarative middle register, neither literary nor conversational; the item count follows the number of distinct user-visible outcomes (the previous release's count is history, not a quota), and length is measured against the previous release before publishing.
 5. Any pending fixes are committed and pushed to `origin/main`.
 
 Use `./scripts/prep_release.sh <bump>` to draft the version bump and notes when starting from an older tag. Tang typically edits the resulting `.github/RELEASE_NOTES.md` by hand to apply the announcement-writing style (community first, 2 to 4 highlights, user-experience framing).
@@ -104,13 +104,13 @@ When a release fixes a bug outside this list, add the reproduction here so the n
 
 `./scripts/release.sh` runs these stages in order. Each is timed and labeled `[stage:<name>]`.
 
-1. **preflight** — clean git, version consistency, gh auth, release notes, config, profile, signing identity, notarization creds.
-2. **stage:checks** — `make fmt-check && make check && make test`. Set `RUN_CLIPPY=1` to add clippy. Set `SKIP_TESTS=1` to skip tests (avoid).
-3. **stage:build** — `./scripts/build.sh`, `PROFILE=release-opt`, `BUILD_ARCH=universal`. Output: `dist/Kaku.app`, `dist/Kaku.dmg`, `dist/kaku_for_update.zip`, `dist/kaku_for_update.zip.sha256`.
-4. **stage:notarize** — `./scripts/notarize.sh`. Tries rcodesign first; falls back to notarytool if rcodesign fails and a notarytool profile exists.
-5. **stage:tag** — `git tag -a V<version> -m 'Release V<version>'` then `git push origin V<version>`. Idempotent: reuses an existing tag at HEAD instead of dying.
-6. **stage:upload** — `gh release create V<version>` (or `gh release edit` if it already exists) with the dmg, zip, and sha256. Title is taken from the first `# ` line of `RELEASE_NOTES.md`.
-7. **stage:homebrew-tap** — `repository_dispatch` to `tw93/homebrew-tap` triggering `bump.yml`. Polls the cask file in `Casks/kakuku.rb` for the new version (default 12 attempts × 15s).
+1. **preflight**: clean git on `main` in sync with `origin/main`, version consistency, gh auth, release notes, config, latest `Build Validation` workflow run on `main` green (an in-progress run only warns), profile, signing identity, notarization creds.
+2. **stage:checks**: `make fmt-check && make check && make test`. Set `RUN_CLIPPY=1` to add clippy. Set `SKIP_TESTS=1` to skip tests (avoid).
+3. **stage:build**: `./scripts/build.sh`, `PROFILE=release-opt`, `BUILD_ARCH=universal`. Output: `dist/Kaku.app`, `dist/Kaku.dmg`, `dist/kaku_for_update.zip`, `dist/kaku_for_update.zip.sha256`.
+4. **stage:notarize**: `./scripts/notarize.sh`. Tries rcodesign first; falls back to notarytool if rcodesign fails and a notarytool profile exists.
+5. **stage:tag**: `git tag -a V<version> -m 'Release V<version>'` then `git push origin V<version>`. Idempotent: reuses an existing tag at HEAD instead of dying.
+6. **stage:upload**: `gh release create V<version>` (or `gh release edit` if it already exists) with the dmg, zip, and sha256. Title is taken from the first `# ` line of `RELEASE_NOTES.md`.
+7. **stage:homebrew-tap**: `repository_dispatch` (`kaku_release_published`) to `tw93/homebrew-tap` triggering `bump.yml`. Polls `Casks/kakuku.rb` through the GitHub contents API for the new version (default 12 attempts, 15s apart).
 
 ## Resume after failure
 
@@ -131,7 +131,7 @@ Resume flags require the corresponding artifacts in `dist/` to still be present.
 - **`No Developer ID Application certificate found`**: re-import the certificate from the maintainer-approved private backup through Keychain Access, using the password from the private runbook. Never add either location to this file.
 - **`Notarization credentials not found`**: follow the ignored private setup runbook to provision one of the environment/keychain inputs described under Credential prerequisites, then rerun `./scripts/release.sh --dry-run`. The script otherwise prompts interactively, which fails in non-interactive shells.
 - **rcodesign S3 connect timeout (3.1s)**: rcodesign uploads the dmg to `notary-submissions-prod.s3.amazonaws.com` via the AWS SDK for Rust, which has a hardcoded 3.1s connect timeout and does not honor `*_proxy` env vars. On networks where direct connect to AWS S3 is slow or proxied (typical for mainland China), it fails consistently with `s3 upload error: HTTP connect timeout occurred after 3.1s`. The error is independent of credentials. Fix: prefix the run with `KAKU_ASC_API_KEY_PATH=/dev/null` to make `notarize.sh` skip rcodesign and use notarytool directly. Both keychain entries should remain set.
-- **Homebrew tap verifier timed out at 12/12**: usually a Fastly CDN false negative, not a real failure. The tap workflow commits `kakuku <version>` to `tw93/homebrew-tap` main on success; verify with `gh api repos/tw93/homebrew-tap/commits/main --jq .commit.message`. The release script polls via `download_url` (raw.githubusercontent.com) which sits behind Fastly with `cache-control: max-age=300`, so the previous version's content can be served for the full 3-minute polling window. If the tap commit is present, the release is complete; CDN catches up within 1-5 minutes. To suppress the verifier on future runs use `REQUIRE_HOMEBREW_TAP_UPDATE=0`. A proper fix would switch the verifier to read API content (`gh api .../contents/... --jq .content | base64 -d`) instead of `download_url`.
+- **Homebrew tap verifier timed out at 12/12**: the tap workflow commits `kakuku <version>` to `tw93/homebrew-tap` main on success; verify with `gh api repos/tw93/homebrew-tap/commits/main --jq .commit.message`. The verifier reads the cask through the GitHub contents API (`Accept: application/vnd.github.raw`), not the Fastly-cached `download_url`, so a timeout means the `bump.yml` run is slow or failed: open the run URL the script printed. If the tap commit is present the release is complete. Widen the window with `HOMEBREW_TAP_VERIFY_ATTEMPTS` / `HOMEBREW_TAP_VERIFY_SLEEP_SECONDS`, or rerun `./scripts/release.sh --tap-only`; `REQUIRE_HOMEBREW_TAP_UPDATE=0` only downgrades the failure to a warning.
 - **`stapler` fails with CloudKit timeout, exit code 68**: the log reads `The staple and validate action failed! Error 68` right after `Notarization accepted`. Notarization already succeeded; only ticket retrieval from `api.apple-cloudkit.com` timed out. Same family as the rcodesign S3 timeout, but intermittent rather than systematic, so do NOT re-notarize. Check reachability (`curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://api.apple-cloudkit.com/`; a 400 means reachable), then run `./scripts/notarize.sh --staple-only` and resume with `./scripts/release.sh --upload-only`. The staple-only path regenerates `kaku_for_update.zip` and its sha256 on purpose: attaching the ticket changes the app, so the Sparkle archive must be rebuilt after stapling, never before.
 - **Tag already exists on origin at a different SHA**: do not force-push tags. Pick the next patch number, bump versions, and start over.
 
@@ -144,6 +144,8 @@ Resume flags require the corresponding artifacts in `dist/` to still be present.
 | `KAKU_NOTARYTOOL_PROFILE` | keychain item `kaku-notarytool-profile` | notarytool keychain profile name. |
 | `HOMEBREW_TAP_TOKEN` | `gh auth token` | GitHub token for tap dispatch. |
 | `REQUIRE_HOMEBREW_TAP_UPDATE` | `1` | Set to `0` to allow release to succeed when tap dispatch fails. |
+| `HOMEBREW_TAP_VERIFY_ATTEMPTS` | `12` | Polls of the tap cask before the verifier gives up. |
+| `HOMEBREW_TAP_VERIFY_SLEEP_SECONDS` | `15` | Seconds between tap cask polls. |
 | `RUN_CLIPPY` | `0` | Set to `1` to run `cargo clippy` during stage:checks. |
 | `SKIP_TESTS` | `0` | Set to `1` to skip `make test` during stage:checks. |
 | `OUT_DIR` | `<repo>/dist` | Override artifact output directory. |
@@ -155,7 +157,7 @@ Resume flags require the corresponding artifacts in `dist/` to still be present.
 - GitHub Release URL: `https://github.com/tw93/Kaku/releases/tag/V<version>`.
 - Homebrew users get the new version once the tap workflow finishes; verify with `brew update && brew info --cask kakuku`.
 - Sparkle in-app updates are served from the GitHub Release assets (`kaku_for_update.zip` + `.sha256`).
-- Add the six positive reactions to the new release. This is part of shipping, not optional polish: V0.17.0 and V0.16.0 both carry exactly these six, and V0.18.0 went out without them because nothing recorded the step. Skip `-1` and `confused`.
+- Add the six positive reactions to the new release; this is part of shipping. Skip `-1` and `confused`.
 
   ```bash
   id=$(gh api repos/tw93/Kaku/releases/tags/V<version> --jq .id)
