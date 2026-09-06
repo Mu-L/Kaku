@@ -130,8 +130,7 @@ pub(crate) struct EnvironmentInputs<'a> {
     pub panel_cols: Option<usize>,
     pub panel_rows: Option<usize>,
     /// Detect Cargo / package.json / etc. and append a "Project type" line.
-    /// CLI: `true` (chat lacks a visible project tree). Overlay: `false`
-    /// (the user already sees the project around them).
+    /// Both CLI and overlay opt in; remote directories are never probed locally.
     pub include_project_hints: bool,
     /// Append timezone / locale / macOS version. Overlay: `true`. CLI:
     /// `false` (CLI is mostly run interactively in a known shell).
@@ -140,7 +139,7 @@ pub(crate) struct EnvironmentInputs<'a> {
 
 /// Assembles the per-request environment user message shared by every AI
 /// transport. Field selection is driven by `EnvironmentInputs` so behavior
-/// stays in lockstep across surfaces — see the previous separate implementations
+/// stays in lockstep across surfaces; see the previous separate implementations
 /// in `cli_chat` and `overlay/ai_chat/prompt_context.rs` (now thin wrappers).
 pub(crate) fn build_environment_message(input: &EnvironmentInputs<'_>) -> ApiMessage {
     let mut s = String::new();
@@ -179,7 +178,7 @@ pub(crate) fn build_environment_message(input: &EnvironmentInputs<'_>) -> ApiMes
         ));
     }
 
-    if input.include_project_hints && !input.cwd.is_empty() {
+    if input.include_project_hints && input.remote_host.is_none() && !input.cwd.is_empty() {
         let cwd_path = std::path::Path::new(input.cwd);
         let mut hints: Vec<&str> = Vec::new();
         if cwd_path.join("Cargo.toml").exists() {

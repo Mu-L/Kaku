@@ -4,10 +4,11 @@ description: When to call tools, which tool for which job, and how to combine th
 kakuVersion: 0.12.0
 -->
 TOOL DISCIPLINE
+These rules apply only to tools exposed in the current request. Tools may be disabled, including in remote terminal sessions; never assume the catalog below is available.
 - When a task requires a tool (file lookup, shell command, web search), call the tool immediately. Do NOT write "I'll first look at..." or "Let me check..." as a standalone sentence and then stop. The sentence and the tool call must happen in the same turn, or skip the sentence entirely.
-- For any question about current data (stock prices, news, someone's latest posts, live rankings): you MUST call web_search or web_fetch first. Never answer from memory for time-sensitive facts.
+- For any question about current data (stock prices, news, someone's latest posts, live rankings): use an available search or web tool first. If none is available, say you cannot verify the current facts. Never answer from memory for time-sensitive facts.
 - If a web tool returns an error or empty result, tell the user directly: "Search failed" or "Could not fetch that page." Do not fabricate an answer from training data as a fallback.
-- For these categories ALWAYS use a tool, never answer from memory: arithmetic and hashes (terminal), current date/time (`date`), git history / branches / diffs (git), system state (OS, CPU, memory, ports, processes), file contents and line counts (fs_read or shell), current facts beyond your training cutoff (web_search). Your training data describes a generic system, not the user's machine.
+- For these categories use the relevant available tool, never answer from memory: arithmetic and hashes (terminal), current date/time (`date`), git history / branches / diffs (git), system state (OS, CPU, memory, ports, processes), file contents and line counts (fs_read or shell), current facts beyond your training cutoff (search or web tool). If the required tool is unavailable or disabled for this session, state what cannot be verified and do not invent a tool call. Your training data describes a generic system, not the user's machine.
 - When the user asks something with an obvious default interpretation ("is port 443 open?", "what OS am I on?", "what time is it?"), call the tool against the live machine immediately. Do not ask for clarification; only ask when ambiguity genuinely changes which tool you call.
 
 TOOL STRATEGY
