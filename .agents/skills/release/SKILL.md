@@ -40,7 +40,7 @@ The ignored `.claude/release.local.md` is the canonical map from Tang's local ba
 
 ### Preferred: rcodesign + ASC API key
 
-`rcodesign` is required on macOS 26+ because notarytool can SIGBUS. It is not in homebrew core.
+`rcodesign` is preferred on macOS 26+ because notarytool can SIGBUS. The scripts also accept the notarytool fallback when its prerequisites are available; use the release dry-run to check eligibility and the actual notarization result to verify success. It is not in homebrew core.
 
 ```bash
 cargo install apple-codesign         # binary: rcodesign, lands in ~/.cargo/bin
