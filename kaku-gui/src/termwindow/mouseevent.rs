@@ -139,9 +139,10 @@ fn tab_bar_item_starts_window_drag(item: TabBarItem) -> bool {
     )
 }
 
-fn should_use_manual_window_drag(window_state: WindowState) -> bool {
-    cfg!(target_os = "macos")
-        && !window_state.intersects(WindowState::FULL_SCREEN | WindowState::MAXIMIZED)
+fn should_use_manual_window_drag(_window_state: WindowState) -> bool {
+    // AppKit owns edge tiling and drag tracking. Other platforms already used
+    // their native drag path; changing macOS must not enable manual drag there.
+    false
 }
 
 fn should_use_native_maximized_window_drag(window_state: WindowState) -> bool {
@@ -2403,14 +2404,15 @@ mod tests {
     }
 
     #[test]
-    fn macos_title_window_drag_uses_manual_path_except_fullscreen() {
+    fn macos_title_window_drag_uses_native_path() {
         if cfg!(target_os = "macos") {
-            assert!(should_use_manual_window_drag(WindowState::empty()));
+            assert!(!should_use_manual_window_drag(WindowState::empty()));
             assert!(!should_use_manual_window_drag(WindowState::MAXIMIZED));
             assert!(!should_use_manual_window_drag(
                 WindowState::MAXIMIZED | WindowState::FULL_SCREEN
             ));
         } else {
+            assert!(!should_use_manual_window_drag(WindowState::empty()));
             assert!(!should_use_manual_window_drag(WindowState::MAXIMIZED));
         }
     }

@@ -24,6 +24,16 @@ The key regression guard is `update_titlebar_background()` in
 opaque windows, otherwise `NSTitlebarContainerView` can cover the Metal-rendered
 top tab bar.
 
+## Window Drag Regression Checks
+
+After the backend drag-decision tests pass, check the built app on macOS:
+single click must not restore a maximized window; dragging must restore and
+move it; double-click must zoom according to the system preference. Repeat
+across displays, with a manually screen-filling window, and in fullscreen.
+The automated matrix covers disagreements between cached maximized state,
+native zoom state, and screen-filling geometry; it does not prove AppKit's
+interactive tracking behavior.
+
 ## Repeatable Performance Checks
 
 Use the same release build, display scale, window size, power mode, and machine
