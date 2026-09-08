@@ -1,7 +1,7 @@
 <div align="center">
   <img src="https://gw.alipayobjects.com/zos/k/6h/dwarf.svg" width="120" />
   <h1>Kaku</h1>
-  <p><em>A fast, out-of-the-box terminal built for AI coding.</em></p>
+  <p><em>An AI-friendly Mac terminal with sensible defaults, ready out of the box.</em></p>
 </div>
 
 <p align="center">
@@ -18,25 +18,27 @@
 
 ## Why
 
-Kaku (書く, かく) is the Japanese word for writing: the act of putting thought into form. A deeply customized fork of WezTerm, built for practical defaults on day one while keeping full Lua customization and a fast, lightweight feel.
+Kaku (書く, かく) means “to write” in Japanese. It is based on WezTerm, with fonts, themes, shell integration, and Mac shortcuts already configured. Lua settings remain available when you want to customize it.
 
 Part of a trilogy: [Kaku](https://github.com/tw93/Kaku) (書く) writes code, [Waza](https://github.com/tw93/Waza) (技) drills habits, [Kami](https://github.com/tw93/Kami) (紙) ships documents. Think of them as a family: Kaku is the dad, Waza the big sister, Kami the little sister.
 
-## Features
-
-- **Zero Config**: Defaults with JetBrains Mono, macOS font rendering, and low-res font sizing.
-- **Theme-Aware Experience**: Auto-switches between dark and light modes with macOS, with tuned selection colors, font weight, and practical color overrides support.
-- **Curated Shell Suite**: Built-in zsh plugins with optional CLI tools for prompt, diff, and navigation workflows.
-- **Fast & Lightweight**: 40% smaller binary, instant startup, lazy loading, stripped-down GPU-accelerated core.
-- **WezTerm-Compatible Config**: Use WezTerm's Lua config directly with full API compatibility and no migration.
-- **Polished Defaults**: Copy on select, clickable file paths, history peek from full-screen apps, and visual bell on background tab completion.
-
 ## Quick Start
 
-1. [Download Kaku DMG](https://github.com/tw93/Kaku/releases/latest) & Drag to Applications
-2. Or install with Homebrew: `brew install tw93/tap/kakuku`
-3. Open Kaku. The app is notarized by Apple, so it opens without security warnings
-4. On first launch, Kaku will automatically set up your shell environment
+Download the [Kaku DMG](https://github.com/tw93/Kaku/releases/latest), open it, and drag Kaku into Applications. Or install with Homebrew:
+
+```bash
+brew install tw93/tap/kakuku
+```
+
+Open Kaku to set up shell integration. Missing optional tools can be installed through `kaku init`.
+
+## Features
+
+- **Ready to use**: JetBrains Mono, automatic dark and light themes, copy on select, and familiar Mac shortcuts.
+- **Tabs and panes**: Split your workspace, find a pane with Tab Navigator, and restore windows, panes, and working directories when you reopen Kaku.
+- **AI-friendly**: Use your coding tools alongside an optional assistant for command suggestions and chat. Configure your own AI service with `kaku ai`.
+- **Shell tools**: Built-in zsh completion, syntax highlighting, and directory jumping, with shortcuts for optional Lazygit and Yazi installations.
+- **Lua configuration**: Customize fonts, themes, shortcuts, and terminal behavior using WezTerm's Lua configuration system.
 
 ## Usage Guide
 
@@ -45,7 +47,7 @@ Part of a trilogy: [Kaku](https://github.com/tw93/Kaku) (書く) writes code, [W
 | New Tab | `Cmd + T` |
 | New Window | `Cmd + N` |
 | Close Tab/Pane | `Cmd + W` |
-| Navigate Tabs | `Cmd + Shift + [` / `]` or `Cmd + 1–9` |
+| Navigate Tabs | `Cmd + Shift + [` / `]` or `Cmd + 1-9` |
 | Navigate Panes | `Cmd + Opt + Arrows` |
 | Split Pane Vertical | `Cmd + D` |
 | Split Pane Horizontal | `Cmd + Shift + D` |
@@ -61,34 +63,14 @@ Full keybinding reference: [docs/keybindings.md](docs/keybindings.md)
 
 ## Kaku AI
 
-Kaku has a built-in assistant with two modes and a settings page for AI coding tools.
+Configure your own AI service with `kaku ai` to use the built-in assistant. Kaku does not provide or relay the AI service.
 
-- **Error recovery**: When a command fails, Kaku automatically suggests a fix. Press `Cmd + Shift + E` to apply.
-- **Natural language to command**: Type `# <description>` at the prompt and press Enter. Kaku sends the query to the LLM and injects the resulting command back into the prompt, ready to review and run.
+- **Command suggestions**: When a command fails, the configured assistant can suggest a fix. Press `Cmd + Shift + E` to paste it at the prompt for review.
+- **Natural language to command**: Type `# <description>` at the prompt and press Enter. The assistant places the generated command at the prompt for you to review and run.
+- **Chat**: Press `Cmd + L` to discuss terminal output or work with project files and tools. Use `kaku chat` from another shell to access the same conversation store.
 - **AI Tools Config**: Manage settings for Claude Code, Codex, Gemini CLI, Copilot CLI, Kimi Code, and more.
 
-### Assistant Setup
-
-Run `kaku ai` to configure the assistant fields directly:
-
-| Field | Use |
-| :--- | :--- |
-| Auth Type | API key or Follow Codex user connection |
-| Simple Model | Lightweight command generation and quick chat model |
-| Deep Model | Primary `Cmd + L` / `k` chat model |
-| Base URL | OpenAI-compatible API root, such as `https://api.openai.com/v1` |
-| API Key | Provider API key when Auth Type is API key |
-
-Full AI assistant docs: [docs/features.md](docs/features.md)
-
-## Performance
-
-| Metric | Upstream | Kaku | Methodology |
-| :--- | :--- | :--- | :--- |
-| **Executable Size** | ~67 MB | ~40 MB | Aggressive symbol stripping & feature pruning |
-| **Resources Volume** | ~100 MB | ~80 MB | Asset optimization & lazy-loaded assets |
-| **Launch Latency** | Standard | Instant | Just-in-time initialization |
-| **Shell Bootstrap** | ~200ms | ~100ms | Optimized environment provisioning |
+For authentication, models, API Mode, and tool settings, see the [AI assistant docs](docs/features.md).
 
 ## FAQ
 
@@ -127,7 +109,7 @@ Big thanks to all contributors who helped build Kaku. Go follow them! ❤️
 ## Support
 
 - The most direct way to support me is getting [Mole for Mac](https://mole.fit), my paid Mac cleanup app.
-- If Kaku helped you, give it a star, [share it](https://twitter.com/intent/tweet?url=https://github.com/tw93/Kaku&text=Kaku%20-%20A%20fast%20terminal%20built%20for%20AI%20coding.), or open an issue or PR.
+- If Kaku helped you, give it a star, [share it](https://twitter.com/intent/tweet?url=https://github.com/tw93/Kaku&text=Kaku%20-%20An%20AI-friendly%20Mac%20terminal.), or open an issue or PR.
 - I have two cats, TangYuan and Coke. If you think Kaku delights your life, you can feed them <a href="https://cats.tw93.fun?name=Kaku" target="_blank">canned food 🥩</a>.
 
 <details>
